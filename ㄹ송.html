@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>무리수의 정수부분과 소수부분</title>
+  <!-- MathJax 로드 (LaTeX 수식 렌더링) -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: white; 
+      color: black; 
+      font-family: sans-serif;
+    }
+    #container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 10px 20px;
+    }
+    .center {
+      text-align: center;
+    }
+    .hidden {
+      display: none;
+    }
+    .energy-bar {
+      width: 100%;
+      height: 20px;
+      background-color: black;
+      margin-bottom: 10px;
+    }
+    .energy-inner {
+      height: 100%;
+      background-color: white;
+      transition: width 0.2s linear;
+    }
+    button {
+      background-color: black;
+      color: white;
+      border: 1px solid black;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    #response {
+      white-space: pre-wrap;
+      margin-top: 10px;
+      font-size: 0.9em;
+    }
+    /* 중앙 정렬을 위한 간단한 스타일 */
+    .input-field {
+      margin: 10px auto;
+      display: block;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div id="container">
+
+  <!-- 첫 화면: 이름 입력 및 난이도 선택 -->
+  <div id="introScreen">
+    <h1 class="center">무리수의 정수부분과 소수부분</h1>
+    <div class="center">
+      <label for="playerName">이름을 입력하세요:</label><br/>
+      <input type="text" id="playerName" class="input-field" />
+    </div>
+    <div class="center">
+      <p>난이도를 선택하세요.</p>
+      <button onclick="startGame('최상')">최상 (20초, 문제당 20점)</button>
+      <button onclick="startGame('상')">상 (30초, 문제당 15점)</button>
+      <button onclick="startGame('중')">중 (40초, 문제당 13점)</button>
+      <button onclick="startGame('하')">하 (시간제한 없음, 문제당 10점)</button>
+    </div>
+  </div>
+
+  <!-- 퀴즈 화면 -->
+  <div id="quizScreen" class="hidden">
+    <div class="energy-bar">
+      <div class="energy-inner" id="energyInner"></div>
+    </div>
+    <div id="timeAndLife" class="center"></div>
+    <div id="questionBox" class="center" style="margin-top:20px; margin-bottom:20px;"></div>
+    <div id="choicesBox" class="center"></div>
+    <div id="feedback" class="center" style="margin-top:10px;"></div>
+    <button id="nextBtn" class="hidden" onclick="nextQuestion()">다음 문제</button>
+  </div>
+
+  <!-- 종료 화면 -->
+  <div id="endScreen" class="hidden center">
+    <h2 id="endMessage"></h2>
+    <p>최종 점수: <span id="finalScore"></span></p>
+    <p>총 소요 시간: <span id="finalTime"></span>초</p>
+    <button onclick="sendScore()">점수 전송</button>
+    <div id="response"></div>
+  </div>
+
+</div>
+
+<script>
+/* 
+  문제/보기/정답 데이터 (모두 포함, 중복/생략 없음).
+  보기 순서는 그대로 유지, 문제 자체를 무작위로 섞어 출제.
+  LaTeX 표기는 \\(...\\) 형태로 감싸서 MathJax가 렌더링하도록 함.
+*/
+
+const allQuestions = [
+  {
+    // #34
+    question: "\\(\\sqrt{2} = 1.414,\\; \\sqrt{20} = 4.472\\)일 때, \\(\\sqrt{200}\\)의 값을 구하시오.",
+    choices: [
+      "1.414",
+      "4.472",
+      "14.14",
+      "0.4472"
+    ],
+    correct: 2
+  },
+  {
+    // #35
+    question: "\\(\\sqrt{2} = 1.414,\\; \\sqrt{20} = 4.472\\)일 때, \\(\\sqrt{2000}\\)의 값을 구하시오.",
+    choices: [
+      "44.72",
+      "0.4472",
+      "14.14",
+      "1.414"
+    ],
+    correct: 0
+  },
+  {
+    // #36
+    question: "\\(\\sqrt{2} = 1.414,\\; \\sqrt{20} = 4.472\\)일 때, \\(\\sqrt{0.02}\\)의 값을 구하시오.",
+    choices: [
+      "14.14",
+      "1.414",
+      "0.1414",
+      "0.01414"
+    ],
+    correct: 2
+  },
+  {
+    // #37
+    question: "\\(\\sqrt{2} = 1.414,\\; \\sqrt{20} = 4.472\\)일 때, \\(\\sqrt{0.2}\\)의 값을 구하시오.",
+    choices: [
+      "1.414",
+      "0.4472",
+      "4.472",
+      "0.1414"
+    ],
+    correct: 1
+  },
+  {
+    // #38
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(\\sqrt{8}\\)의 값을 구하시오.",
+    choices: [
+      "8.28",
+      "3.828",
+      "2.828",
+      "0.2828"
+    ],
+    correct: 2
+  },
+  {
+    // #39
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(\\sqrt{18}\\)의 값을 구하시오.",
+    choices: [
+      "3.414",
+      "2.828",
+      "42.42",
+      "4.242"
+    ],
+    correct: 3
+  },
+  {
+    // #40
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(\\sqrt{32}\\)의 값을 구하시오.",
+    choices: [
+      "5.656",
+      "0.5656",
+      "14.14",
+      "1.414"
+    ],
+    correct: 0
+  },
+  {
+    // #41
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(\\sqrt{50}\\)의 값을 구하시오.",
+    choices: [
+      "5.000",
+      "2.236",
+      "7.070",
+      "70.70"
+    ],
+    correct: 2
+  },
+  {
+    // #42
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(\\sqrt{72}\\)의 값을 구하시오.",
+    choices: [
+      "8.484",
+      "14.14",
+      "2.828",
+      "0.8484"
+    ],
+    correct: 0
+  },
+  {
+    // #46
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{500}\\)의 값을 구하시오.",
+    choices: [
+      "223.6",
+      "22.36",
+      "2.236",
+      "0.2236"
+    ],
+    correct: 1
+  },
+  {
+    // #47
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{5000}\\)의 값을 구하시오.",
+    choices: [
+      "0.7071",
+      "7.071",
+      "223.6",
+      "70.71"
+    ],
+    correct: 3
+  },
+  {
+    // #48
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{50000}\\)의 값을 구하시오.",
+    choices: [
+      "223.6",
+      "2.236",
+      "70.71",
+      "707.1"
+    ],
+    correct: 0
+  },
+  {
+    // #49
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{500000}\\)의 값을 구하시오.",
+    choices: [
+      "7.071",
+      "70.71",
+      "707.1",
+      "22.36"
+    ],
+    correct: 2
+  },
+  {
+    // #50
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{0.5}\\)의 값을 구하시오.",
+    choices: [
+      "0.707",
+      "7.071",
+      "0.0707",
+      "2.236"
+    ],
+    correct: 0
+  },
+  {
+    // #51
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{0.05}\\)의 값을 구하시오.",
+    choices: [
+      "2.236",
+      "0.2236",
+      "0.02236",
+      "22.36"
+    ],
+    correct: 1
+  },
+  {
+    // #52
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{0.005}\\)의 값을 구하시오.",
+    choices: [
+      "0.02236",
+      "0.0707",
+      "7.07",
+      "0.2236"
+    ],
+    correct: 1
+  },
+  {
+    // #53
+    question: "\\(\\sqrt{5} = 2.236,\\; \\sqrt{50} = 7.071\\)일 때, \\(\\sqrt{0.0005}\\)의 값을 구하시오.",
+    choices: [
+      "0.2236",
+      "2.236",
+      "0.02236",
+      "0.00707"
+    ],
+    correct: 2
+  },
+  {
+    // #54
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{370}\\)의 값을 구하시오.",
+    choices: [
+      "19.24",
+      "0.1924",
+      "60.83",
+      "1.924"
+    ],
+    correct: 0
+  },
+  {
+    // #55
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{3700}\\)의 값을 구하시오.",
+    choices: [
+      "6.083",
+      "0.6083",
+      "1.924",
+      "60.83"
+    ],
+    correct: 3
+  },
+  {
+    // #56
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{37000}\\)의 값을 구하시오.",
+    choices: [
+      "192.4",
+      "60.83",
+      "19.24",
+      "6.083"
+    ],
+    correct: 0
+  },
+  {
+    // #57
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{370000}\\)의 값을 구하시오.",
+    choices: [
+      "60.83",
+      "1.924",
+      "608.3",
+      "19.24"
+    ],
+    correct: 2
+  },
+  {
+    // #58
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{0.37}\\)의 값을 구하시오.",
+    choices: [
+      "0.608",
+      "1.924",
+      "6.083",
+      "608"
+    ],
+    correct: 0
+  },
+  {
+    // #59
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{0.037}\\)의 값을 구하시오.",
+    choices: [
+      "0.1924",
+      "19.24",
+      "0.608",
+      "60.8"
+    ],
+    correct: 0
+  },
+  {
+    // #60
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{0.0037}\\)의 값을 구하시오.",
+    choices: [
+      "0.1924",
+      "0.0608",
+      "6.08",
+      "0.608"
+    ],
+    correct: 1
+  },
+  {
+    // #61
+    question: "\\(\\sqrt{3.7} = 1.924,\\; \\sqrt{37} = 6.083\\)일 때, \\(\\sqrt{0.00037}\\)의 값을 구하시오.",
+    choices: [
+      "0.1924",
+      "0.01924",
+      "1.924",
+      "19.24"
+    ],
+    correct: 1
+  },
+  {
+    // #74
+    question: "\\(\\sqrt{3} = 1.732\\)일 때, \\(\\sqrt{3}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "3",
+      "1",
+      "0",
+      "2"
+    ],
+    correct: 1
+  },
+  {
+    // #75
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(\\sqrt{5}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "2",
+      "0",
+      "1",
+      "3"
+    ],
+    correct: 0
+  },
+  {
+    // #76
+    question: "\\(\\sqrt{10} = 3.162\\)일 때, \\(\\sqrt{10}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "1",
+      "2",
+      "3",
+      "0"
+    ],
+    correct: 2
+  },
+  {
+    // #77
+    question: "\\(\\sqrt{3} = 1.732\\)일 때, \\(2\\sqrt{3}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "2",
+      "3",
+      "4",
+      "1"
+    ],
+    correct: 1
+  },
+  {
+    // #78
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(3\\sqrt{2}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "3",
+      "4",
+      "5",
+      "2"
+    ],
+    correct: 1
+  },
+  {
+    // #79
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(2\\sqrt{5}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "2",
+      "4",
+      "6",
+      "3"
+    ],
+    correct: 1
+  },
+  {
+    // #80
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(1 + \\sqrt{2}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "1",
+      "2",
+      "3",
+      "0"
+    ],
+    correct: 1
+  },
+  {
+    // #81
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(\\sqrt{5} + 2\\)의 정수 부분을 구하시오.",
+    choices: [
+      "4",
+      "5",
+      "2",
+      "3"
+    ],
+    correct: 0
+  },
+  {
+    // #82
+    question: "\\(\\sqrt{3} = 1.732\\)일 때, \\(3 + \\sqrt{3}\\)의 정수 부분을 구하시오.",
+    choices: [
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    correct: 1
+  },
+  {
+    // #88
+    question: "\\(\\sqrt{7} = 2.645\\)일 때, \\(\\sqrt{7}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "0.645",
+      "2.645",
+      "1.645",
+      "0.2645"
+    ],
+    correct: 0
+  },
+  {
+    // #89
+    question: "\\(\\sqrt{15} = 3.873\\)일 때, \\(\\sqrt{15}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "0.873",
+      "3.000",
+      "0.387",
+      "3.873"
+    ],
+    correct: 0
+  },
+  {
+    // #90
+    question: "\\(\\sqrt{21} = 4.582\\)일 때, \\(\\sqrt{21}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "4.000",
+      "0.458",
+      "0.582",
+      "1.582"
+    ],
+    correct: 2
+  },
+  {
+    // #91
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(4\\sqrt{2}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "1.414",
+      "0.5656",
+      "5.656",
+      "0.656"
+    ],
+    correct: 3
+  },
+  {
+    // #92
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(3\\sqrt{5}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "0.708",
+      "6.708",
+      "7.08",
+      "1.708"
+    ],
+    correct: 0
+  },
+  {
+    // #93
+    question: "\\(\\sqrt{2} = 1.414\\)일 때, \\(5\\sqrt{2}\\)의 소수 부분을 구하시오.",
+    choices: [
+      "0.07",
+      "7.07",
+      "0.707",
+      "5.70"
+    ],
+    correct: 0
+  },
+  {
+    // #102
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(2\\sqrt{5}\\)의 정수 부분과 소수 부분을 각각 구하시오.",
+    choices: [
+      "정수부분 4, 소수부분 0.472",
+      "정수부분 2, 소수부분 0.236",
+      "정수부분 4, 소수부분 0.236",
+      "정수부분 5, 소수부분 0.472"
+    ],
+    correct: 0
+  },
+  {
+    // #103
+    question: "\\(\\sqrt{3} = 1.732\\)일 때, \\(\\sqrt{3} + 2\\)의 정수 부분과 소수 부분을 각각 구하시오.",
+    choices: [
+      "정수부분 1, 소수부분 0.732",
+      "정수부분 3, 소수부분 0.732",
+      "정수부분 2, 소수부분 0.1732",
+      "정수부분 3, 소수부분 0.1732"
+    ],
+    correct: 1
+  },
+  {
+    // #104
+    question: "\\(\\sqrt{5} = 2.236\\)일 때, \\(4 - \\sqrt{5}\\)의 정수 부분과 소수 부분을 각각 구하시오.",
+    choices: [
+      "정수부분 1, 소수부분 0.764",
+      "정수부분 0, 소수부분 0.764",
+      "정수부분 1, 소수부분 0.236",
+      "정수부분 2, 소수부분 0.764"
+    ],
+    correct: 0
+  }
+];
+
+// 난이도별 제한 시간 / 점수
+const timeLimits = {
+  "최상": 20,
+  "상": 30,
+  "중": 40,
+  "하": 999999  // 사실상 무제한
+};
+const scoresByLevel = {
+  "최상": 20,
+  "상": 15,
+  "중": 13,
+  "하": 10
+};
+
+let currentQuestions = [];  // 무작위 문제 목록
+let currentIndex = 0;       // 현재 문제 인덱스
+let correctAnswerIndex = -1;// 현재 문제 정답
+let lives = 3;             // 남은 기회
+let score = 0;             // 점수
+let totalTime = 0;         // 전체 경과 시간(초)
+let questionTime = 0;      // 현재 난이도별 제한시간
+let timeInterval = null;   // 에너지바 타이머
+let totalTimeInterval = null; // 전체 시간 측정용
+let energy = 100;          // 에너지바(%) 
+let nameInput = "";        // 사용자 이름
+let difficulty = "";       // 난이도
+
+/**
+ *  첫 화면에서 난이도 선택 시 호출
+ */
+function startGame(level) {
+  nameInput = document.getElementById("playerName").value.trim();
+  if(!nameInput){
+    alert("이름을 입력하세요.");
+    return;
+  }
+
+  difficulty = level;
+  questionTime = timeLimits[level];
+
+  // 문제 섞기
+  const shuffled = shuffleArray(allQuestions.slice());
+  currentQuestions = shuffled;
+
+  // 초기화
+  currentIndex = 0;
+  lives = 3;
+  score = 0;
+  totalTime = 0;
+
+  document.getElementById("introScreen").classList.add("hidden");
+  document.getElementById("quizScreen").classList.remove("hidden");
+
+  // 전체 시간 측정
+  totalTimeInterval = setInterval(() => {
+    totalTime++;
+  }, 1000);
+
+  showQuestion();
+}
+
+function showQuestion() {
+  // 마지막 문제까지 갔거나, 기회가 없는 경우는 게임 종료로
+  if(currentIndex >= currentQuestions.length || lives <= 0){
+    endGame();
+    return;
+  }
+
+  // 에너지/피드백 초기화
+  energy = 100;
+  document.getElementById("feedback").innerText = "";
+  document.getElementById("nextBtn").classList.add("hidden");
+
+  const q = currentQuestions[currentIndex];
+  const questionBox = document.getElementById("questionBox");
+  const choicesBox = document.getElementById("choicesBox");
+
+  // 문제 텍스트
+  questionBox.innerHTML = q.question;
+  // 보기
+  choicesBox.innerHTML = "";
+  q.choices.forEach((c, idx) => {
+    const btn = document.createElement("button");
+    btn.style.display = "block";
+    btn.style.margin = "5px auto";
+    btn.style.width = "200px";
+    btn.innerHTML = c; 
+    btn.onclick = () => checkAnswer(idx);
+    choicesBox.appendChild(btn);
+  });
+
+  correctAnswerIndex = q.correct;
+
+  // MathJax 렌더링
+  MathJax.typeset();
+
+  // 시간/라이프 표시
+  updateTimeAndLife();
+
+  // 에너지바 시작
+  if(difficulty !== "하"){
+    startEnergyBar();
+  } else {
+    // 하(시간제한 없음)는 에너지바를 가득 채우고 멈춤
+    stopEnergyBar();
+    document.getElementById("energyInner").style.width = "100%";
+  }
+}
+
+function checkAnswer(choiceIndex){
+  const q = currentQuestions[currentIndex];
+  const isCorrect = (choiceIndex === q.correct);
+  
+  stopEnergyBar(); // 일단 멈춤
+
+  if(isCorrect){
+    // 정답
+    score += scoresByLevel[difficulty];
+    document.getElementById("feedback").innerText = "정답입니다!";
+  } else {
+    // 오답
+    lives--;
+    document.getElementById("feedback").innerText = 
+      "틀렸습니다! 정답: " + q.choices[q.correct];
+  }
+
+  updateTimeAndLife();
+  document.getElementById("nextBtn").classList.remove("hidden");
+  disableChoiceButtons();
+  
+  // 3번 틀리면 게임 종료
+  if(lives <= 0) {
+    endGame();
+  }
+}
+
+// 다음 문제로
+function nextQuestion(){
+  currentIndex++;
+  showQuestion();
+}
+
+function endGame(){
+  stopEnergyBar();
+  clearInterval(totalTimeInterval);
+  document.getElementById("quizScreen").classList.add("hidden");
+  document.getElementById("endScreen").classList.remove("hidden");
+
+  // 메시지
+  let msg = "게임 종료!";
+  if(currentIndex >= currentQuestions.length){
+    msg = "모든 문제를 풀었습니다!";
+  }
+  document.getElementById("endMessage").innerText = msg;
+  document.getElementById("finalScore").innerText = score;
+  document.getElementById("finalTime").innerText = totalTime;
+}
+
+// 시간/라이프 표시 갱신
+function updateTimeAndLife(){
+  const tl = document.getElementById("timeAndLife");
+  tl.innerText = "남은 기회: " + lives + " | 현재 점수: " + score;
+}
+
+// 에너지바 타이머 시작
+function startEnergyBar(){
+  stopEnergyBar(); 
+  const max = questionTime;
+  let elapsed = 0;
+  
+  timeInterval = setInterval(() => {
+    elapsed += 0.2; // 0.2초 간격
+    const ratio = 1 - (elapsed / max);
+    energy = ratio * 100;
+    if(energy < 0) energy = 0;
+    document.getElementById("energyInner").style.width = energy + "%";
+
+    if(energy <= 0){
+      // 시간 초과
+      clearInterval(timeInterval);
+      timeInterval = null;
+      lives--;
+      document.getElementById("feedback").innerText = 
+        "시간이 초과되었습니다! 자동으로 다음 문제로 넘어갑니다.";
+      // 정답 표시
+      const q = currentQuestions[currentIndex];
+      document.getElementById("feedback").innerText += 
+        " 정답: " + q.choices[q.correct];
+      
+      updateTimeAndLife();
+      disableChoiceButtons();
+      
+      // 기회 소진 체크
+      if(lives <= 0){
+        endGame();
+      } else {
+        // 일정 시간 뒤 다음 문제로
+        setTimeout(() => {
+          currentIndex++;
+          showQuestion();
+        }, 2000);
+      }
+    }
+  }, 200); // 0.2초 간격 업데이트
+}
+
+// 에너지바 타이머 중단
+function stopEnergyBar(){
+  if(timeInterval){
+    clearInterval(timeInterval);
+    timeInterval = null;
+  }
+}
+
+// 보기를 더 이상 클릭 못 하도록
+function disableChoiceButtons(){
+  const choicesBox = document.getElementById("choicesBox");
+  const btns = choicesBox.getElementsByTagName("button");
+  for(let i=0; i<btns.length; i++){
+    btns[i].disabled = true;
+  }
+}
+
+// 배열 무작위 섞기 (보기 순서가 아니라 문제 순서를 섞는다)
+function shuffleArray(arr){
+  for(let i=arr.length-1; i>0; i--){
+    const j = Math.floor(Math.random()* (i+1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// 점수 전송
+function sendScore(){
+  saveData(
+    "무리수의 정수부분과 소수부분",
+    nameInput,
+    score,
+    totalTime
+  );
+}
+
+// 서버 전송 함수 (문제에서 주어진 코드 그대로 사용)
+async function saveData(game, name, score, elapsedTime) {
+  const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+  const requestData = {
+      game,
+      name,
+      score: parseInt(score, 10),
+      elapsedTime: parseInt(elapsedTime, 10)
+  };
+
+  try {
+      const response = await fetch(FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok) {
+          document.getElementById('response').innerText =
+              `성공: ${JSON.stringify(responseData, null, 2)}`;
+      } else {
+          document.getElementById('response').innerText =
+              `오류: ${JSON.stringify(responseData, null, 2)}`;
+      }
+  } catch (error) {
+      console.error('요청 실패:', error);
+      document.getElementById('response').innerText =
+          `네트워크 오류: ${error.message}`;
+  }
+}
+</script>
+</body>
+</html>
